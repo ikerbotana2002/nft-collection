@@ -130,7 +130,7 @@ contract NFTCollectionTest is Test {
 
         nft.mint(alice);
 
-        assertEq(nft.tokenURI(0), "ipfs://collection/0");
+        assertEq(nft.tokenURI(0), "ipfs://collection/0.json");
     }
 
     function testNonOwnerCannotSetBaseURI() public {
@@ -139,5 +139,109 @@ contract NFTCollectionTest is Test {
         vm.expectRevert();
 
         nft.setBaseURI("ipfs://fake/");
+    }
+
+    function testTokenURIWithRealMetadataCID() public {
+        nft.setBaseURI("ipfs://bafybeibt6phl3sh4sqmkg76qqn7xqbvfq2laafbqdy33klqxqtmrvueexu/");
+
+        nft.mint(alice);
+
+        assertEq(nft.tokenURI(0), "ipfs://bafybeibt6phl3sh4sqmkg76qqn7xqbvfq2laafbqdy33klqxqtmrvueexu/0.json");
+    }
+
+    function testChangingBaseURIChangesExistingTokenURI() public {
+        nft.setBaseURI("ipfs://first/");
+
+        nft.mint(alice);
+
+        assertEq(nft.tokenURI(0), "ipfs://first/0.json");
+
+        nft.setBaseURI("ipfs://second/");
+
+        assertEq(nft.tokenURI(0), "ipfs://second/0.json");
+    }
+
+    function testOwnerCanFreezeMetadata() public {
+        nft.freezeMetadata();
+
+        assertTrue(nft.metadataFrozen());
+    }
+
+    function testCannotChangeBaseURIAfterFreeze() public {
+        nft.setBaseURI("ipfs://first/");
+
+        nft.freezeMetadata();
+
+        vm.expectRevert("Metadata is frozen");
+
+        nft.setBaseURI("ipfs://second/");
+    }
+
+    function testNonOwnerCannotFreezeMetadata() public {
+        vm.prank(alice);
+
+        vm.expectRevert();
+
+        nft.freezeMetadata();
+    }
+
+    function testOwnerCanRevealCollection() public {
+        nft.setBaseURI("ipfs://placeholder/");
+
+        nft.mint(alice);
+
+        nft.reveal("ipfs://final/");
+
+        assertTrue(nft.revealed());
+
+        assertEq(nft.tokenURI(0), "ipfs://final/0.json");
+    }
+
+    function testCannotRevealTwice() public {
+        nft.reveal("ipfs://first/");
+
+        vm.expectRevert("Already revealed");
+
+        nft.reveal("ipfs://second/");
+    }
+
+    function testNonOwnerCannotReveal() public {
+        vm.prank(alice);
+
+        vm.expectRevert();
+
+        nft.reveal("ipfs://fake/");
+    }
+
+    function testRevealThenFreezeMetadata() public {
+        nft.setBaseURI("ipfs://placeholder/");
+
+        nft.mint(alice);
+
+        nft.reveal("ipfs://final/");
+
+        assertEq(nft.tokenURI(0), "ipfs://final/0.json");
+
+        nft.freezeMetadata();
+
+        vm.expectRevert("Metadata is frozen");
+
+        nft.setBaseURI("ipfs://changed/");
+    }
+
+    function testCannotSetBaseURIAfterMetadataFreeze() public {
+        nft.freezeMetadata();
+
+        vm.expectRevert("Metadata is frozen");
+
+        nft.setBaseURI("ipfs://new/");
+    }
+
+    function testCannotRevealAfterMetadataFreeze() public {
+        nft.freezeMetadata();
+
+        vm.expectRevert("Metadata is frozen");
+
+        nft.reveal("ipfs://final/");
     }
 }
