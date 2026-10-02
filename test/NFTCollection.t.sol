@@ -244,4 +244,122 @@ contract NFTCollectionTest is Test {
 
         nft.reveal("ipfs://final/");
     }
+
+    function testFuzzMintToAnyValidAddress(address recipient) public {
+        vm.assume(recipient != address(0));
+
+        nft.mint(recipient);
+
+        assertEq(nft.ownerOf(0), recipient);
+        assertEq(nft.balanceOf(recipient), 1);
+        assertEq(nft.nextTokenId(), 1);
+    }
+
+    function testFuzzMintMultipleNFTs(uint256 amount) public {
+        amount = bound(amount, 1, nft.MAX_SUPPLY());
+
+        for (uint256 i = 0; i < amount; i++) {
+            nft.mint(alice);
+        }
+
+        assertEq(nft.balanceOf(alice), amount);
+
+        assertEq(nft.nextTokenId(), amount);
+
+        for (uint256 i = 0; i < amount; i++) {
+            assertEq(nft.ownerOf(i), alice);
+        }
+    }
+
+    function testFuzzTransferNFT(address recipient) public {
+        vm.assume(recipient != address(0));
+        vm.assume(recipient != alice);
+
+        nft.mint(alice);
+
+        vm.prank(alice);
+        nft.safeTransferFrom(alice, recipient, 0);
+
+        assertEq(nft.ownerOf(0), recipient);
+
+        assertEq(nft.balanceOf(alice), 0);
+
+        assertEq(nft.balanceOf(recipient), 1);
+    }
+
+    function testFuzzUnauthorizedAddressCannotTransfer(address attacker) public {
+        vm.assume(attacker != address(0));
+        vm.assume(attacker != alice);
+
+        nft.mint(alice);
+
+        vm.prank(attacker);
+        vm.expectRevert();
+
+        nft.safeTransferFrom(alice, attacker, 0);
+    }
+
+    function testFuzzApprovedAddressCanTransfer(address operator) public {
+        vm.assume(operator != address(0));
+        vm.assume(operator != alice);
+
+        nft.mint(alice);
+
+        vm.prank(alice);
+        nft.approve(operator, 0);
+
+        assertEq(nft.getApproved(0), operator);
+
+        vm.prank(operator);
+        nft.safeTransferFrom(alice, bob, 0);
+
+        assertEq(nft.ownerOf(0), bob);
+
+        assertEq(nft.getApproved(0), address(0));
+    }
+
+    function testFuzzOperatorApprovalPersistsAcrossTransfers(address operator) public {
+        vm.assume(operator != address(0));
+        vm.assume(operator != alice);
+        vm.assume(operator != bob);
+
+        nft.mint(alice);
+        nft.mint(alice);
+
+        vm.prank(alice);
+        nft.setApprovalForAll(operator, true);
+
+        assertTrue(nft.isApprovedForAll(alice, operator));
+
+        vm.prank(operator);
+        nft.safeTransferFrom(alice, bob, 0);
+
+        assertTrue(nft.isApprovedForAll(alice, operator));
+
+        assertEq(nft.ownerOf(0), bob);
+
+        assertEq(nft.ownerOf(1), alice);
+    }
+
+    function testFuzzRevokedOperatorCannotTransfer(address operator) public {
+        vm.assume(operator != address(0));
+        vm.assume(operator != alice);
+
+        nft.mint(alice);
+
+        vm.startPrank(alice);
+
+        nft.setApprovalForAll(operator, true);
+
+        nft.setApprovalForAll(operator, false);
+
+        vm.stopPrank();
+
+        assertFalse(nft.isApprovedForAll(alice, operator));
+
+        vm.prank(operator);
+        vm.expectRevert();
+
+        nft.safeTransferFrom(alice, operator, 0);
+    }
 }
